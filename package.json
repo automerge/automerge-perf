@@ -1,0 +1,9 @@
+{
+  "name": "google-realtime-api-test",
+  "version": "0.0.1",
+  "scripts": {},
+  "devDependencies": {},
+  "dependencies": {
+    "selenium-webdriver": "^3.6.0"
+  }
+}

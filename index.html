@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<!--
+    Run `python -m SimpleHTTPServer` to serve this file on http://localhost:8000/
+-->
+<html>
+  <head>
+    <title>Google Realtime API Test</title>
+    <style type="text/css">
+      main {
+        width: 80%;
+        margin: 0 auto;
+      }
+
+      textarea {
+        width: calc(50% - 8px);
+        height: 100px;
+      }
+    </style>
+
+    <script src="https://apis.google.com/js/api.js"></script>
+    <script src="https://www.gstatic.com/realtime/realtime-client-utils.js"></script>
+    <!--
+      ( echo 'const edits = [';
+        cat trve.js.gz | gunzip | grep '^text.splice' |
+          sed -e 's/^text.splice(/  [/' -e 's/);$/],/';
+        echo '  [0, 0]';
+        echo '];';
+        cat trve.js.gz | gunzip | grep '^if ' | tail -n 1 |
+          sed -e "s/^if (text.join('') != /const finalText = /" \
+          -e "s/) throw 'mismatch: ' + text.join('');$/;/"
+      ) > perf.js
+    -->
+    <script src="perf.js"></script>
+  </head>
+  <body>
+    <main>
+      <h1>Google Realtime API Test</h1>
+      <p id="status"></p>
+      <div id="editor">
+        <textarea id="text_area_1"></textarea>
+        <textarea id="text_area_2"></textarea>
+        <p><button id="replay_button">Replay edit trace</button></p>
+      </div>
+      <button id="auth_button">Log in</button>
+    </main>
+
+    <script>
+      var realtimeUtils = new utils.RealtimeUtils({
+        clientId: '827127853028-7qkkgmgc6pbdl0h78rjl9os5l6j02kmp.apps.googleusercontent.com'
+      });
+
+      authorize();
+
+      function authorize() {
+        // Attempt to authorize
+        document.getElementById('status').innerText = 'Authenticating, please wait...';
+        document.getElementById('editor').style.display = 'none';
+        document.getElementById('auth_button').style.display = 'none';
+
+        realtimeUtils.authorize(function (response) {
+          if (response.error) {
+            document.getElementById('status').innerText = 'Please log in.';
+            var button = document.getElementById('auth_button');
+            button.style.display = 'block';
+            button.addEventListener('click', function () {
+              document.getElementById('status').innerText = 'Initiating login...';
+              realtimeUtils.authorize(start, true);
+            });
+          } else {
+            document.getElementById('status').innerText = 'Authenticated successfully.';
+            start();
+          }
+        }, false);
+      }
+
+      function start() {
+        document.getElementById('auth_button').style.display = 'none';
+
+        // Load a file, or create one if there is no ID in the URL.
+        var id = realtimeUtils.getParam('id');
+        if (id) {
+          document.getElementById('status').innerText = 'Loading file ' + id + '...';
+          realtimeUtils.load(id.replace('/', ''), onFileLoaded, onFileInitialize);
+        } else {
+          document.getElementById('status').innerText = 'Creating new file...';
+          realtimeUtils.createRealtimeFile('Realtime API test', function(createResponse) {
+            window.history.pushState(null, null, '?id=' + createResponse.id);
+            realtimeUtils.load(createResponse.id, onFileLoaded, onFileInitialize);
+          });
+        }
+      }
+
+      // The first time a file is opened, it must be initialized with the
+      // document structure. This function will add a collaborative string
+      // to our model at the root.
+      function onFileInitialize(model) {
+        var string = model.createString();
+        string.setText('');
+        model.getRoot().set('demo_string', string);
+      }
+
+      // After a file has been initialized and loaded, we can access the
+      // document. We will wire up the data model to the UI.
+      function onFileLoaded(doc) {
+        document.getElementById('status').innerText = '';
+        document.getElementById('editor').style.display = 'block';
+        var content = doc.getModel().getRoot().get('demo_string');
+        gapi.drive.realtime.databinding.bindString(content, document.getElementById('text_area_1'));
+        gapi.drive.realtime.databinding.bindString(content, document.getElementById('text_area_2'));
+
+        document.getElementById('replay_button').addEventListener('click', function () {
+          document.getElementById('status').innerText = 'Replaying edit trace...';
+          content.setText('');
+          replayEdits(content);
+        });
+      }
+
+      function replayEdits(content) {
+        let i = 0, interval = window.setInterval(() => {
+          if (i < edits.length) {
+            if (i % 1000 === 0) {
+              document.getElementById('status').innerText = 'Replaying edit trace... (' +
+                (100.0 * i / edits.length).toFixed(2) + '% done)';
+            }
+            if (edits[i][1] > 0) {
+              content.removeRange(edits[i][0], edits[i][0] + edits[i][1]);
+            }
+            if (edits[i].length > 2) {
+              content.insertString(edits[i][0], edits[i].slice(2).join(''));
+            }
+            i++;
+
+          } else {
+
+            if (content.text === finalText) {
+              document.getElementById('status').innerText = 'Finished replaying edit trace.';
+            } else {
+              document.getElementById('status').innerText = 'Edit trace did not reproduce expected result.';
+            }
+            window.clearInterval(interval);
+          }
+        }, 0);
+      }
+    </script>
+  </body>
+</html>
