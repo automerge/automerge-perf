@@ -1,0 +1,11 @@
+{
+  "name": "automerge-perf",
+  "version": "0.0.1",
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "leb": "^0.3.0",
+    "text-encoding": "^0.6.4"
+  },
+  "devDependencies": {}
+}
