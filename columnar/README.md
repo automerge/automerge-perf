@@ -86,7 +86,7 @@ look like this:
     (4,1337) insert  (3,1337) 'l'
     (5,1337) insert  (4,1337) 'o'
 
-Each operation has a unique ID that is a pair of (counter,actorId) where actorId is the unique
+Each operation has a unique ID that is a pair of (counter,actorId), where actorId is the unique
 name of the actor that generated the operation. In the example above, `1337` and `d00d` are
 actorIds. Each operation also references the ID of another operation (the `ref` column): for an
 `insert` operation, the reference is the ID of the predecessor character, and for a `delete`
@@ -102,8 +102,8 @@ efficient encoding. Let’s put the operations in the order in which their corre
 appear in the text. In the case of ties (e.g. multiple deletion operations of the same character),
 we sort by operation ID.
 
-To encode this data efficiently, . We can then encode the data by individually encoding
-each column of the table above:
+To encode this data efficiently, we can encode the data by individually encoding each column of the
+table above:
 
 * The counter part of `op_id` is the sequence `[1, 6, 7, 2, 3, 4, 5]`, for which delta-encoding
   is suitable.
@@ -118,6 +118,11 @@ each column of the table above:
 * The `ref` column can be encoded as two separate sequences for counter and actorId,
   respectively, like for the `op_id` column. `null` values can be encoded by using `-1` for
   counter and actorId.
+  * Alternative encoding for the `ref` column: note that any non-null reference is always a
+    (counter,actorId) pair that is the ID of another row in the same table. In the common case,
+    the reference is the ID of the immediately preceding insertion. We could encode this by a
+    number that is the relative offset of the row being referenced (e.g. -1 references the
+    preceding row, -2 references the row two above, etc).
 * For the `value` column, first note that a deletion operation never has a value, and so our
   sequences for this column will only contain six values, while the other sequences contain seven
   values. Next, we construct a sequence of numbers indicating how many bytes are required to
@@ -146,8 +151,8 @@ sequence of bytes. Unlike JSON, there are no field names, and no quotation marks
 beginning and end of a value, making the encoding vastly more compact than our current approach
 of representing each operation as a separate JSON object. We can also take advantage of our
 knowledge about typical patterns in the data. For example, we know that the set of actorIds will
-be fairly low-cardinality in most cases (so a lookup table is effective), and we know that
-people tend to type text from beginning to end, only occasionally moving their cursor (so
+be fairly low-cardinality in most cases (so a lookup table and RLE are effective), and we know
+that people tend to type text from beginning to end, only occasionally moving their cursor (so
 counter values of successive insertion operations tend to form incrementing sequences, so
 delta-encoding is effective).
 
@@ -159,7 +164,7 @@ before.
 Prototype evaluation
 --------------------
 
-The file `columnar.js` in this directory contains a barebones sample implementation of this
+The file `columnar.js` in this directory contains a barebones prototype implementation of this
 approach. It reads a sample dataset from the file `perf.json`. The sample is the
 character-by-character editing trace of the LaTeX source of the
 [JSON CRDT paper](https://arxiv.org/abs/1608.03960) (we recorded this trace by writing the paper
@@ -197,7 +202,140 @@ any CRDT metadata.
 
 However, one caveat: these compression benefits only kick in because we are encoding the entire
 document in one go. If every change is encoded separately (with only a small number operations per
-change), e.g. Hypermerge appends each change as a message to a Hypercore, we can still use a
+change), e.g. like Hypermerge appends each change as a chunk to a Hypercore, we can still use a
 columnar encoding, but the compression will be less effective. Depending on the editing patterns
 of a document, it might in some situations be more efficient to send the entire document (encoded
-as a whole) rather than a log of individually encoded changes.
+and compressed as a whole) rather than a log of individually encoded changes. We can still merge
+two entire documents, since each of them internally is just a set of operations, of which we can
+take the union.
+
+Putting together a file format
+------------------------------
+
+Besides the encoding above, more is needed before we really have a file format:
+
+* Encoding other object types besides text. This can mostly be quite similar. For example, a map
+  object has a set of assignment and deletion operations per key; each such operation has an ID;
+  assignment operations reference the set of prior IDs that they overwrite; and deletion
+  operations reference the set of prior IDs that they remove.
+* Encoding of multiple objects, and references between objects (i.e. which objects are nested
+  within which other objects). At the moment we give each object a UUID; I am thinking of instead
+  identifying objects with a (counter,actorId) pair, just like operations. This can be encoded
+  more compactly, and gives greater consistency to the data model: we can give every operation,
+  including object creation operations, a (counter,actorId) identifier.
+* Putting together the encoded columns into a flat file. A simple approach would be to give each
+  column a minimal header, consisting of a number identifying the column type and a number
+  indicating the length in bytes, followed by the encoded column data.
+* Extensibility for future features. This is a difficult one. In the future we might want to add
+  new object types (say, a set datatype, or a record datatype that follows a strict schema) or new
+  operations (say, an assignment that picks the maximum value when there are conflicts). When
+  collaborating users are on different versions of the software, we need forward and backward
+  compatibility: in particular, it should be possible for a file written with a newer version of
+  the software to be read by an older version of Automerge.
+
+  One way of implementing this would be to tag each column with a number indicating its type, and
+  for the software to ignore any column types that it does not recognise (by analogy, in a JSON
+  setting, you can ignore any unknown field names in an object). However, this does not work well
+  when the document can be edited using the old version of the software, since the correct
+  interpretation of columns rely on all columns containing rows in the same order. If the software
+  inserts rows in the columns that it understands, and leaves those columns that it does not
+  understand unchanged, then the data would be broken.
+
+  Perhaps this means that we have to fix a set of column encodings (such as UTF-8 text, and RLE
+  numbers); when new column types are added, they must use one of these set encodings that we know
+  how to manipulate.
+
+In-memory data representation
+-----------------------------
+
+An interesting extension is to consider using a columnar format not only for writing to disk and
+sending over the network, but also for Automerge’s run-time in-memory state. At the moment, the
+in-memory state is also very heavyweight: e.g. for the text datatype, every character is
+a JavaScript object with references to predecessor and successor, which is part of a skip list
+structure, which is in turn based on an Immutable.js Map object, which is made from lots more
+JavaScript objects… I haven’t analysed in detail, but in total there must be dozens of pointers
+for every character of a text document, and at 64 bits apiece, this adds up to quite substantial
+memory use.
+
+The columnar encoding, as described above, is not directly suitable for Automerge’s run-time state:
+for example, the UTF-8 text content is represented as one long byte array, and thus inserting
+a character in the middle would require copying all the subsequent text to make space for the new
+insertion, which would be inefficient.
+
+However, we can make a compromise between the two approaches. Say, for example, that we split the
+text into roughly 100-character blocks (exact value to be determined experimentally), use the
+columar approach to encode the columns of each block as byte arrays, and then arrange those blocks
+into a tree. Inserting a character then requires copying up to 100 bytes, which might be fairly fast
+compared to traversing a large structure with lots of pointers, since the short byte array maps
+nicely to CPU cache lines. And the tree structure would now be ~100 times smaller, since the
+smallest unit of the tree is now a 100-character block rather than a single character.
+
+For a text CRDT, two commonly needed functions are to translate the unique ID of a character into an
+index in the document (i.e. locating a character ID), and vice versa. Translation from index to
+character ID is easy: each tree node is labelled with the number of characters contained within its
+subtree, so we can traverse the tree to find the appropriate block, and then decode the ID column
+to find the n-th ID within it.
+
+For the reverse direction, translating from ID to index, we can proceed as follows: each node of the
+tree has an associated Bloom filter containing the IDs of all characters contained within its
+subtree. A parent node’s Bloom filter is the union of its children’s Bloom filters. To search for an
+ID, traverse all subtrees for which the Bloom filter indicates a hit; when we reach a leaf node,
+decode the ID column to see whether the ID really is there. Bloom filter false positives only incur
+a slight performance cost of sometimes unnecessarily decoding a block. Once an ID is found, move
+back to the root of the tree and use the number-of-character labels to calculate the index of the
+character within the document.
+
+When a block gets bigger than (say) 100 characters, we can split it into two adjacent blocks, just
+like in a B-tree. Some of the column types could handle the addition of a new operation without even
+needing to copy much: as mentioned previously, it might be sufficient to increment the repetition
+count for a value, which could be done by just overwriting a byte or two in-place. Note that here we
+can potentially get performance gains by using a mutable representation for Automerge’s internal
+state. We can contemplate using mutable internals even while keeping the external API immutable. But
+we should do some experiments to weigh up the trade-offs here.
+
+As working title I propose calling this tree structure a CoBB-tree (Column-oriented Bloom B-tree).
+Although a Cobb salad isn’t exactly lightweight. 😎
+
+Multiple branches
+-----------------
+
+We’ve talked about how it would be desirable to support Git-like branching and merging in Automerge.
+The CoBB-tree also gives us a way of doing this fairly well, I think.
+
+Firstly, we merge all of the operations from all of the branches into a single object with a single
+columnar encoding. This works even for text, because in the CRDT we’re using, the relative order of
+two character IDs in the text never changes (this is still true with our move operation as well).
+Thus, for a text object we have a single sequence of character IDs, containing all the character IDs
+created on any of the branches. We can have any number of different character values associated with
+each character ID.
+
+Different branches may associate a different character with a given ID (or none). Given a particular
+branch, we now need to figure out what the actual character sequence for the document version on
+that branch is. We can do this by maintaining a vector clock for each branch. For each actorId
+that has generated operations, the vector clock contains the highest operation counter value that
+is part of that branch. As counter values are generated in monotonically increasing order per-actor,
+this threshold for each actorId characterises exactly which operations are or are not part of the
+branch.
+
+Now, for every character ID in the sequence, we have a set of operations that associate values with
+that character ID. For each branch, we can now efficiently find the subset of operations that exist
+on that branch, simply by looking up the actorId part of the character ID in the branch’s vector
+clock. Then we can work out what the value is on that branch: the value of any assignment or
+insertion operations that exist on the branch, such that there is no other assignment or deletion
+operation on that branch that overwrites or removes the value again. If there is no such value, it
+means there is no visible character at that position in the text on that branch (it either has been
+deleted, or not yet created). If there is more than one value, we have a conflict due to concurrent
+assignment.
+
+(This is sort of a generalisation of the MVCC concurrency control method found in databases like
+PostgreSQL, where it is used to present consistent point-in-time snapshot views of the database to
+transactions.)
+
+To diff the documents on two branches, we scan over the sequence and find any character IDs for
+which the subsets of visible operations on the two branches differ.
+
+For translating between character IDs and document indexes, as per the last section, each tree node
+needs to maintain a separate character count for each branch (counting only characters that are
+visible on that branch). The remaining data structures (Bloom filters, columnar data blocks) can be
+shared between all the branches. This makes branches cheap in terms of both memory use and
+computational overheads.
