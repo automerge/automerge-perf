@@ -20,6 +20,28 @@ it lacks convenient features such as copy&paste.
 
 Here is a description of each of the subdirectories of this repository:
 
+edit-history
+------------
+
+`edit-history/paper.json.gz` contains the complete editing trace of the paper
+in Automerge's JSON change format (the variant used on the `performance` branch).
+It contains 332,702 changes, including an initial change that creates a Text
+object for the text document, and a map to contain the cursors. Most changes
+contain just a single operation, but a few changes contain multiple operations
+(in particular, a character deletion and a cursor movement in the same change;
+this happens when the delete key was used to delete the character after the
+cursor).
+
+You can use [jq](https://stedolan.github.io/jq/) to inspect the operations:
+
+* insertions: `jq -c '.ops[] | select(.insert==true)'`
+* deletions: `jq -c '.ops[] | select(.action=="del")'`
+* cursor movements: `jq -c '.ops[] | select(.obj | startswith("2@"))'`
+
+`compress.js` reads this editing trace, calls into the Automerge code to encode
+it using Automerge's binary change format, and writes out the binary-encoded
+data to new files.
+
 edit-by-index
 -------------
 
