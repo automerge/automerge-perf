@@ -1,11 +1,33 @@
 Benchmarking resources for Automerge
 ====================================
 
-Stuff that can be found here:
+This repository contains data and code for performance tests of
+[Automerge](https://github.com/automerge/automerge). In particular, it
+contains the character-by-character editing trace of a large-ish text
+document, the LaTeX source of [this paper](https://arxiv.org/abs/1608.03960).
+That editing trace consists of:
 
-* `editing-trace.js` (NB. big file: 4.5 MB) contains the character-by-character
-  editing trace of the LaTeX source of [this paper](https://arxiv.org/abs/1608.03960).
-  It exports two variables: `edits` is an array of 259,778 one-character insertions or
+* 182,315 single-character insertion operations
+* 77,463 single-character deletion operations
+* 102,049 cursor movement operations
+
+The [final text document](https://github.com/trvedata/json-crdt-tpds/blob/master/trvesync.tex)
+contains 104,852 ASCII characters (= 182,315 – 77,463).
+We produced that editing trace by writing the entire paper in a
+[homegrown text editor](https://github.com/trvedata/trvesync/blob/master/ruby/bin/crdt-editor).
+We don't recommend actually using that editor, because it's terribly slow, and
+it lacks convenient features such as copy&paste.
+
+Here is a description of each of the subdirectories of this repository:
+
+edit-by-index
+-------------
+
+* `editing-trace.js` (NB. big file: 4.5 MB) contains the editing trace as a list of
+  calls to [Array.splice](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Array/splice)
+  (that is, each edit identifies the insertion/deletion position by index).
+  Cursor movements are omitted. This file exports two variables:
+  `edits` is an array of 259,778 one-character insertions or
   deletions, and `finalText` is a string containing the final state of the document.
   (Although the original document did have some concurrent editing, this trace has
   been flattened into a linear editing history to make things easier.)
@@ -19,6 +41,16 @@ Stuff that can be found here:
   10,000 operations are replayed in 1.6 s, and the first 100,000 operations in 43 s.
   It runs out of memory after processing 235,000 operations (using the default Node
   heap size, which seems to be about 1.4 GB or so).
-* `google-realtime-api` contains an experiment of trying to replay the editing trace
-  against the now-defunct [Google Realtime API](https://developers.google.com/realtime/deprecation).
-* `columnar` contains an experimental compressed binary encoding for Automerge data.
+
+
+google-realtime-api
+-------------------
+
+An experiment of trying to replay the editing trace against the now-defunct
+[Google Realtime API](https://developers.google.com/realtime/deprecation).
+
+columnar
+--------
+
+An experimental compressed binary encoding for Automerge data.
+See the README in this directory for details.
