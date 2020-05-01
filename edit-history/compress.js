@@ -22,6 +22,13 @@ lineReader.on('line', (line) => {
   }
   json.deps = deps
 
+  for (let op of json.ops) {
+    if (op.ref) {
+      op.child = op.ref
+      delete op.ref
+    }
+  }
+
   const encoded = encodeChange(json)
   output.write(encoded)
   totalLength += encoded.byteLength
