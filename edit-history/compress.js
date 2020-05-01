@@ -1,4 +1,4 @@
-const { encodeChange, decodeChange, encodeDocument } = require('../../automerge/backend/columnar')
+const { encodeChange, decodeChange, encodeDocument, decodeDocument } = require('../../automerge/backend/columnar')
 const fs = require('fs')
 const zlib = require('zlib')
 const readline = require('readline')
@@ -44,4 +44,7 @@ lineReader.on('close', () => {
   const doc = encodeDocument(changes)
   console.log(`as document: ${doc.byteLength} bytes`)
   fs.writeFileSync('paper.doc.crdt', doc)
+  console.log('decoding document again...')
+  const decoded = decodeDocument(doc)
+  console.log(`successfully reconstructed ${decoded.length} changes`)
 })
