@@ -3,3 +3,4 @@
 /google-realtime-api/node_modules/
 /google-realtime-api/package-lock.json
 /columnar/node_modules
+/edit-history/paper.changes.crdt
