@@ -29,6 +29,8 @@ lineReader.on('line', (line) => {
     }
   }
 
+  json.time = Math.floor(json.time / 1000)
+
   const encoded = encodeChange(json)
   output.write(encoded)
   totalLength += encoded.byteLength
