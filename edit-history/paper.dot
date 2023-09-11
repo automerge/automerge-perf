@@ -1,0 +1,29 @@
+digraph {
+// Cross-actor dependencies
+change_1d12_105 -> change_9654_126721
+change_9654_126720 -> change_1d12_1
+change_9654_162512 -> change_b31c_1
+change_9654_171710 -> change_b31c_516
+change_9654_213417 -> change_b31c_1987
+change_9654_217379 -> change_b31c_3482
+change_b31c_1986 -> change_9654_178268
+change_b31c_3481 -> change_9654_213418
+
+// Intra-actor dependencies
+change_1d12_1 -> change_1d12_105
+change_9654_1 -> change_9654_126720
+change_9654_126720 -> change_9654_126721
+change_9654_126721 -> change_9654_162512
+change_9654_162512 -> change_9654_171710
+change_9654_171710 -> change_9654_178268
+change_9654_178268 -> change_9654_213417
+change_9654_213417 -> change_9654_213418
+change_9654_213418 -> change_9654_217379
+change_9654_217379 -> change_9654_250743
+change_b31c_1 -> change_b31c_516
+change_b31c_516 -> change_b31c_1986
+change_b31c_1986 -> change_b31c_1987
+change_b31c_1987 -> change_b31c_3481
+change_b31c_3481 -> change_b31c_3482
+change_b31c_3482 -> change_b31c_8931
+}
