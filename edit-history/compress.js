@@ -1,8 +1,7 @@
 // To make a condensed-down version of the JSON:
 // cat paper.json.gz | gunzip | tail -n +2 | jq -c 'if .ops[0].insert then {action: "insert", actor: .actor, seq: .seq, deps: .deps, time: .time, id: ((.startOp | tostring) + "@" + .actor), char: .ops[0].value, pos: .ops[0].elemId} else {action: "delete", actor: .actor, seq: .seq, deps: .deps, time: .time, pos: .ops[0].elemId} end'
 
-
-const Automerge = require('../../automerge/src/automerge')
+const Automerge = require('@automerge/automerge-wasm')
 const { edits, finalText } = require('../edit-by-index/editing-trace')
 const fs = require('fs')
 const zlib = require('zlib')
@@ -52,14 +51,17 @@ lineReader.on('close', () => {
   console.log(`as ${changes.length} individual changes: ${totalLength} bytes`)
   console.log(JSON.stringify(opsCount))
 
-  const [doc] = Automerge.applyChanges(Automerge.init(), changes)
-  const compressed = Automerge.save(doc)
+  let doc = Automerge.create()
+  doc.applyChanges(changes) // if I use changes.slice(0, 225657) then the following Automerge.load works
+  //console.log(JSON.stringify(Automerge.decodeChange(changes[225657]), null, 4))
+  const compressed = doc.save()
   console.log(`as document: ${compressed.byteLength} bytes`)
   fs.writeFileSync('paper.doc.crdt', compressed)
 
   console.log('decoding document again...')
   const reloaded = Automerge.load(compressed)
-  fs.writeFileSync('paper.reconstructed', reloaded.text.toString())
-  //if (reloaded.text.toString() !== finalText) throw new RangeError('document reconstruction failed')
-  //console.log(`successfully reconstructed document`)
+  const reloadedText = reloaded.text(reloaded.get('_root', 'text'))
+  fs.writeFileSync('paper.reconstructed', reloadedText)
+  if (reloadedText !== finalText) throw new RangeError('document reconstruction failed')
+  console.log(`successfully reconstructed document`)
 })

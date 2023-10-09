@@ -1,0 +1,8 @@
+{
+  "name": "automerge-perf",
+  "version": "1.0.0",
+  "main": "compress.js",
+  "dependencies": {
+    "@automerge/automerge-wasm": "^0.2.14"
+  }
+}
