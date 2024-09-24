@@ -18,6 +18,12 @@ We produced that editing trace by writing the entire paper in a
 We don't recommend actually using that editor, because it's terribly slow, and
 it lacks convenient features such as copy&paste.
 
+The final version of the paper is published as:
+
+> Martin Kleppmann and Alastair R. Beresford. A Conflict-Free Replicated JSON Datatype.
+> IEEE Transactions on Parallel and Distributed Systems 28(10):2733–2746, April 2017.
+> [doi:10.1109/TPDS.2017.2697382](https://doi.org/10.1109/TPDS.2017.2697382)
+
 Here is a description of each of the subdirectories of this repository:
 
 edit-history
@@ -87,3 +93,11 @@ All material in this repository, including the editing trace, is made available 
 
 [cc-by]: http://creativecommons.org/licenses/by/4.0/
 [cc-by-image]: https://i.creativecommons.org/l/by/4.0/88x31.png
+
+The final version of the research paper that is being written in the editing trace is
+[published](https://doi.org/10.1109/TPDS.2017.2697382) in IEEE Transactions on Parallel and
+Distributed Systems, and copyright in this paper has been assigned to the IEEE. However, the
+editing trace contains a lot more information than the final paper, and so we believe that the
+copyright assignment does not cover this editing trace. We are therefore able to make it available
+under the liberal CC-BY license. All authors of the papers have consented to making the editing
+trace publicly available.
